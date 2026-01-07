@@ -311,10 +311,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                     println!("unable to open {}", entry.path().display());
                     continue;
                 };
+                let now = Utc::now();
                 println!(
-                    "schedule `{}`: next at {} with interval {}",
+                    "schedule `{}`: next at {} (in {}) with interval {}",
                     entry.path().file_name().unwrap().display(),
                     schedule.next,
+                    FormattedInterval(schedule.next.signed_duration_since(now)),
                     FormattedInterval(schedule.interval)
                 );
             }
