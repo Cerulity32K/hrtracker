@@ -1,0 +1,10 @@
+[package]
+name = "hrtracker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+chrono = "0.4.42"
+decent = { git = "https://github.com/cerulity32K/decent" }
+decent-macros = { git = "https://github.com/cerulity32K/decent" }
