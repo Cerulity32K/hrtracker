@@ -15,4 +15,4 @@ A date is one of `today` (00:00 of the current day), `tomorrow`/`tmrw` (00:00 of
 Times are in `hh`, `hh:mm`, or `hh:mm:ss` format, and are parsed as such.
 
 ## Permissions
-HRTracker requires read/write permissions to `$HOME/hrtracker`; it will create it if it does not already exist.
+HRTracker requires read/write permissions to `$HOME/.hrtracker`; it will create it if it does not already exist.
