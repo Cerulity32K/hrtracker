@@ -85,7 +85,7 @@ pub fn today() -> DateTime<Utc> {
     )
 }
 
-pub fn split_once<'a>(all: &'a str, delimiter: &str) -> (&'a str, Option<&'a str>) {
+pub fn try_split_once<'a>(all: &'a str, delimiter: &str) -> (&'a str, Option<&'a str>) {
     match all.split_once(delimiter) {
         Some((first, rest)) => (first, Some(rest)),
         None => (all, None),
@@ -106,20 +106,24 @@ pub fn split_once<'a>(all: &'a str, delimiter: &str) -> (&'a str, Option<&'a str
 
 pub fn parse_timedelta(hhmmss: &str) -> Result<TimeDelta> {
     let mut delta = TimeDelta::zero();
-    let (hh, maybe_mmss) = split_once(hhmmss, ":");
+    let (hh, maybe_mmss) = try_split_once(hhmmss, ":");
     ensure!(hh.len() == 2, "expected 2 hour digits, got {}", hh.len());
     match hh.parse::<u8>()? {
-        hours @ 0..=23 => delta += TimeDelta::hours(hours as i64),
+        hours @ 0..=23 => {
+            delta += TimeDelta::hours(hours as i64);
+        }
         oob => return Err(anyhow!("`{oob}` out of bounds (expected 0 to 23 hours)")),
     }
 
     let Some(mmss) = maybe_mmss else {
         return Ok(delta);
     };
-    let (mm, maybe_ss) = split_once(mmss, ":");
+    let (mm, maybe_ss) = try_split_once(mmss, ":");
     ensure!(mm.len() == 2, "expected 2 minute digits, got {}", mm.len());
     match mm.parse::<u8>()? {
-        minutes @ 0..=59 => delta += TimeDelta::minutes(minutes as i64),
+        minutes @ 0..=59 => {
+            delta += TimeDelta::minutes(minutes as i64);
+        }
         oob => return Err(anyhow!("`{oob}` out of bounds (expected 0 to 59 minutes)")),
     }
 
@@ -128,7 +132,9 @@ pub fn parse_timedelta(hhmmss: &str) -> Result<TimeDelta> {
     };
     ensure!(ss.len() == 2, "expected 2 minute digits, got {}", ss.len());
     match ss.parse::<u8>()? {
-        seconds @ 0..=59 => delta += TimeDelta::seconds(seconds as i64),
+        seconds @ 0..=59 => {
+            delta += TimeDelta::seconds(seconds as i64);
+        }
         oob => return Err(anyhow!("`{oob}` out of bounds (expected 0 to 59 seconds)")),
     }
 
@@ -148,7 +154,7 @@ pub fn parse_date(repr: &str) -> Result<DateTime<Utc>> {
 }
 
 pub fn parse_datetime(repr: &str) -> Result<DateTime<Utc>> {
-    let (date_repr, maybe_hhmmss) = split_once(repr, "+");
+    let (date_repr, maybe_hhmmss) = try_split_once(repr, "+");
     let mut date = parse_date(date_repr)?;
     let Some(hhmmss) = maybe_hhmmss else {
         return Ok(date);
@@ -254,23 +260,23 @@ pub enum Action {
         start: DateTime<Utc>,
         every: TimeDelta,
     },
+    Step(String),
     Next(String),
-    When(String),
 }
 impl Action {
     pub fn get(args: &mut impl Iterator<Item = String>) -> Result<Self> {
-        let action = match &args
-            .next()
-            .ok_or_else(|| anyhow!("an action must be specified"))?[..]
-        {
+        let Some(action) = args.next() else {
+            return Ok(Action::List);
+        };
+        let action = match &action[..] {
             "list" => Self::List,
             "new" => Self::New {
                 name: get::name(args)?,
                 start: get::datetime(args)?,
                 every: get::interval(args)?,
             },
+            "step" => Self::Step(get::name(args)?),
             "next" => Self::Next(get::name(args)?),
-            "when" => Self::When(get::name(args)?),
             unknown => return Err(anyhow!("unknown action `{unknown}`"))?,
         };
         return Ok(action);
@@ -324,7 +330,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Action::New { name, start, every } => {
             RegularSchedule::create(start, every).save(folder + &name)?;
         }
-        Action::Next(name) => {
+        Action::Step(name) => {
             let mut schedule = RegularSchedule::open(folder.clone() + &name)?;
             schedule.next += schedule.interval;
             println!(
@@ -333,7 +339,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             );
             schedule.save(folder + &name)?;
         }
-        Action::When(name) => {
+        Action::Next(name) => {
             let schedule = RegularSchedule::open(folder + &name)?;
             let delta = schedule.next.signed_duration_since(Utc::now());
             println!("{} (in {})", schedule.next, FormattedInterval(delta));
